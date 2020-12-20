@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -x
+
+modprobe configfs
+modprobe libcomposite
+modprobe usbip-vudc
+modprobe vhci-hcd
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t debugfs debugfs /sys/kernel/debug
+mount -t configfs configfs /sys/kernel/config
+
+mknod /dev/null c 1 3
+mknod /dev/tty c 5 0
+mdev -s
+
+ip addr add 127.0.0.1/8 dev lo
+ip link set lo up
+
+cd /sys/kernel/config/usb_gadget
+mkdir -p g1
+cd g1
+echo 0xdead > idProduct
+echo 0xbeef > idVendor
+mkdir -p functions/acm.ser0
+mkdir -p configs/c.1
+ln -s functions/* configs/c.1/
+echo usbip-vudc.0 > UDC
+
+usbipd --device --daemon
+sleep 1 # XXX wait for usbipd to listen
+usbip attach -r localhost -b usbip-vudc.0
+lsusb
+
+#echo "I: Dropping to a shell"
+#exec sh
